@@ -209,6 +209,34 @@ export async function dismissReports(storyId: number): Promise<void> {
   return handleResponse<void>(res);
 }
 
+// ── Background image ──────────────────────────────────────────────────────────
+
+export async function getBackground(): Promise<string | null> {
+  const res = await fetch('/api/settings/background');
+  const data = await handleResponse<{ background: string | null }>(res);
+  return data.background;
+}
+
+export async function uploadBackground(file: File): Promise<string> {
+  const form = new FormData();
+  form.append('image', file);
+  const res = await fetch('/api/settings/background', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: form,
+  });
+  const data = await handleResponse<{ background: string }>(res);
+  return data.background;
+}
+
+export async function deleteBackground(): Promise<void> {
+  const res = await fetch('/api/settings/background', {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  return handleResponse<void>(res);
+}
+
 // ── Banned words ──────────────────────────────────────────────────────────────
 
 export interface BannedWord {

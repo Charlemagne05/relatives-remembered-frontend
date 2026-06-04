@@ -18,7 +18,7 @@ import { AuthDialog } from './components/AuthDialog';
 import { RememberMeDialog } from './components/RememberMeDialog';
 import { ProfileDialog } from './components/ProfileDialog';
 import { AdminPanel } from './components/AdminPanel';
-import { type Memorial, type AuthUser, getStories } from '../api';
+import { type Memorial, type AuthUser, getStories, getBackground } from '../api';
 
 export type { Memorial };
 
@@ -51,6 +51,12 @@ export default function App() {
   const [backgroundColor, setBackgroundColor] = useState<string>(() => {
     return localStorage.getItem('backgroundColor') || COLOR_OPTIONS[0];
   });
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+
+  // Charge l'image de fond depuis le serveur au démarrage
+  useEffect(() => {
+    getBackground().then((url) => setBackgroundImage(url)).catch(() => {});
+  }, []);
 
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
     const raw = localStorage.getItem('auth') || sessionStorage.getItem('auth');
@@ -141,7 +147,12 @@ export default function App() {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', background: backgroundColor }}>
+    <Box sx={{
+      minHeight: '100vh',
+      ...(backgroundImage
+        ? { backgroundImage: `url(${backgroundImage})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }
+        : { background: backgroundColor }),
+    }}>
       <AppBar position="static" color="transparent" elevation={0}
         sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
         <Toolbar>
@@ -284,6 +295,8 @@ export default function App() {
           backgroundColor={backgroundColor}
           onBackgroundColorChange={handleBackgroundColorChange}
           colorOptions={COLOR_OPTIONS}
+          backgroundImage={backgroundImage}
+          onBackgroundImageChange={setBackgroundImage}
           onStoryDeleted={handleStoryDeleted}
         />
       </Container>

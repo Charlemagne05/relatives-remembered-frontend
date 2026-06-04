@@ -16,6 +16,7 @@ import AbcIcon from '@mui/icons-material/Abc';
 import {
   getAdminReports, dismissReports, deleteStory,
   getBannedWords, addBannedWord, deleteBannedWord,
+  uploadBackground, deleteBackground,
   type ReportedStory, type BannedWord,
 } from '../../api';
 
@@ -34,11 +35,14 @@ interface AdminPanelProps {
   backgroundColor: string;
   onBackgroundColorChange: (color: string) => void;
   colorOptions: string[];
+  backgroundImage: string | null;
+  onBackgroundImageChange: (url: string | null) => void;
   onStoryDeleted: (id: number) => void;
 }
 
 export function AdminPanel({
-  open, onClose, backgroundColor, onBackgroundColorChange, colorOptions, onStoryDeleted,
+  open, onClose, backgroundColor, onBackgroundColorChange, colorOptions,
+  backgroundImage, onBackgroundImageChange, onStoryDeleted,
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'reports' | 'colors' | 'banned'>('reports');
 
@@ -72,6 +76,32 @@ export function AdminPanel({
       await dismissReports(story.id);
       setReportedStories((prev) => prev.filter((s) => s.id !== story.id));
     } catch { alert('Erreur lors de la suppression des signalements'); }
+  };
+
+  // ── Background image ─────────────────────────────────────────────────────────
+  const [bgUploading, setBgUploading] = useState(false);
+  const [bgError, setBgError] = useState('');
+
+  const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBgUploading(true);
+    setBgError('');
+    try {
+      const url = await uploadBackground(file);
+      onBackgroundImageChange(url);
+    } catch { setBgError("Erreur lors de l'upload"); }
+    finally { setBgUploading(false); e.target.value = ''; }
+  };
+
+  const handleRemoveBg = async () => {
+    if (!window.confirm('Retirer l\'image de fond ?')) return;
+    setBgUploading(true);
+    try {
+      await deleteBackground();
+      onBackgroundImageChange(null);
+    } catch { setBgError('Erreur lors de la suppression'); }
+    finally { setBgUploading(false); }
   };
 
   // ── Banned words ──────────────────────────────────────────────────────────────
@@ -257,21 +287,70 @@ export function AdminPanel({
         {/* ── Onglet Couleur du fond ── */}
         {activeTab === 'colors' && (
           <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Choisir la couleur de fond pour tout le site
+
+            {/* Section image de fond */}
+            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+              🖼️ Image de fond
             </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              L'image remplace la couleur pour tous les visiteurs du site.
+            </Typography>
+
+            {bgError && <Alert severity="error" sx={{ mb: 2 }}>{bgError}</Alert>}
+
+            {backgroundImage ? (
+              <Box sx={{ mb: 3 }}>
+                <Box sx={{
+                  width: '100%', height: 160, borderRadius: 2, mb: 1.5,
+                  backgroundImage: `url(${backgroundImage})`,
+                  backgroundSize: 'cover', backgroundPosition: 'center',
+                  border: '2px solid', borderColor: 'primary.main',
+                }} />
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button component="label" variant="outlined" size="small" disabled={bgUploading}>
+                    Changer l'image
+                    <input type="file" accept="image/*" hidden onChange={handleBgUpload} />
+                  </Button>
+                  <Button variant="outlined" color="error" size="small"
+                    onClick={handleRemoveBg} disabled={bgUploading}
+                    startIcon={<DeleteIcon />}>
+                    Retirer
+                  </Button>
+                  {bgUploading && <CircularProgress size={24} sx={{ ml: 1, alignSelf: 'center' }} />}
+                </Box>
+              </Box>
+            ) : (
+              <Box sx={{ mb: 3 }}>
+                <Button component="label" variant="contained" disabled={bgUploading}
+                  startIcon={bgUploading ? <CircularProgress size={16} color="inherit" /> : <AddIcon />}>
+                  Choisir une image
+                  <input type="file" accept="image/*" hidden onChange={handleBgUpload} />
+                </Button>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  Formats acceptés : JPG, PNG, WebP — max 10 MB
+                </Typography>
+              </Box>
+            )}
+
+            <Divider sx={{ my: 2 }} />
+
+            {/* Couleurs prédéfinies (actives seulement si pas d'image) */}
+            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+              🎨 Couleur de fond {backgroundImage && <Typography component="span" variant="caption" color="text.secondary">(désactivé si image active)</Typography>}
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, opacity: backgroundImage ? 0.45 : 1 }}>
               {colorOptions.map((color) => (
                 <Button key={color}
-                  variant={backgroundColor === color ? 'contained' : 'outlined'}
-                  onClick={() => onBackgroundColorChange(color)}
+                  variant={!backgroundImage && backgroundColor === color ? 'contained' : 'outlined'}
+                  onClick={() => { if (!backgroundImage) onBackgroundColorChange(color); }}
+                  disabled={!!backgroundImage}
                   sx={{ justifyContent: 'flex-start', py: 1.5, px: 2.5, textTransform: 'none' }}>
                   <Box sx={{
                     width: 36, height: 36, borderRadius: 1, background: color,
                     border: '1px solid', borderColor: 'divider', mr: 2, flexShrink: 0,
                   }} />
                   <Typography>{COLOR_LABELS[color] ?? color}</Typography>
-                  {backgroundColor === color && (
+                  {!backgroundImage && backgroundColor === color && (
                     <CheckCircleIcon sx={{ ml: 'auto', color: 'primary.contrastText' }} />
                   )}
                 </Button>
