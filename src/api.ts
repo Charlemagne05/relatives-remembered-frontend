@@ -1,5 +1,10 @@
 // Centralized API client — all calls go through here
 
+export interface StoryImage {
+  id: number;
+  image_path: string;
+}
+
 export interface Memorial {
   id: number;
   user_id: number;
@@ -7,11 +12,26 @@ export interface Memorial {
   relationship: string; // ex: "Grand-mère", "Meilleur ami"
   content: string;      // le récit
   author: string;       // username de l'auteur
-  image_path: string | null;
+  image_path: string | null; // legacy (kept for compat)
+  images: StoryImage[];      // photos multiples (max 15)
   is_public: number;
   created_at: string;
   likes: number;
   user_liked: boolean;
+}
+
+export interface Report {
+  id: number;
+  story_id: number;
+  reported_by: number;
+  reported_by_username: string;
+  reason: string;
+  created_at: string;
+}
+
+export interface ReportedStory extends Memorial {
+  report_count: number;
+  reports: Report[];
 }
 
 export interface Comment {
@@ -94,14 +114,14 @@ export async function createStory(data: {
   relationship: string;
   content: string;
   is_public?: number;
-  image?: File | null;
+  images?: File[];
 }): Promise<Memorial> {
   const form = new FormData();
   form.append('title', data.title);
   form.append('relationship', data.relationship);
   form.append('content', data.content);
   form.append('is_public', String(data.is_public ?? 1));
-  if (data.image) form.append('image', data.image);
+  if (data.images) data.images.forEach((img) => form.append('images', img));
 
   const res = await fetch('/api/stories', {
     method: 'POST',
@@ -142,6 +162,51 @@ export async function toggleLike(id: number): Promise<{ liked: boolean; likes: n
 export async function getUserStories(userId: number): Promise<Memorial[]> {
   const res = await fetch(`/api/stories/user/${userId}`, { headers: authHeaders() });
   return handleResponse<Memorial[]>(res);
+}
+
+// ── Story images ──────────────────────────────────────────────────────────────
+
+export async function addStoryImages(storyId: number, files: File[]): Promise<{ images: StoryImage[] }> {
+  const form = new FormData();
+  files.forEach((f) => form.append('images', f));
+  const res = await fetch(`/api/stories/${storyId}/images`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: form,
+  });
+  return handleResponse<{ images: StoryImage[] }>(res);
+}
+
+export async function deleteStoryImage(storyId: number, imageId: number): Promise<void> {
+  const res = await fetch(`/api/stories/${storyId}/images/${imageId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  return handleResponse<void>(res);
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+export async function reportStory(id: number, reason: string): Promise<void> {
+  const res = await fetch(`/api/stories/${id}/report`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ reason }),
+  });
+  return handleResponse<void>(res);
+}
+
+export async function getAdminReports(): Promise<ReportedStory[]> {
+  const res = await fetch('/api/admin/reports', { headers: authHeaders() });
+  return handleResponse<ReportedStory[]>(res);
+}
+
+export async function dismissReports(storyId: number): Promise<void> {
+  const res = await fetch(`/api/admin/reports/${storyId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  return handleResponse<void>(res);
 }
 
 // ── Comments ──────────────────────────────────────────────────────────────────
